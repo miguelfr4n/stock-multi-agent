@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Controle de Estoque — Multi-Agente</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 260px;
+      background: #161b22;
+      border-right: 1px solid #30363d;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 16px;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .sidebar h2 {
+      font-size: 15px;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 8px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 0 20px;
+      border-bottom: 1px solid #30363d;
+      margin-bottom: 8px;
+    }
+    .logo-icon { font-size: 28px; }
+    .logo-text { font-size: 16px; font-weight: 700; color: #e6edf3; line-height: 1.2; }
+    .logo-sub  { font-size: 11px; color: #8b949e; }
+
+    .quick-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      color: #c9d1d9;
+      font-size: 13px;
+      text-align: left;
+      transition: background .15s, border-color .15s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .quick-btn:hover { background: #2d333b; border-color: #58a6ff; color: #58a6ff; }
+    .quick-btn .icon { font-size: 16px; width: 20px; text-align: center; }
+
+    .sidebar-section { margin-top: 16px; }
+
+    .agent-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #8b949e;
+    }
+    .agent-badge .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── MAIN ── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .topbar {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar-title { font-size: 16px; font-weight: 600; color: #e6edf3; }
+    .topbar-status {
+      font-size: 12px;
+      color: #3fb950;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .topbar-status::before {
+      content: '';
+      width: 8px; height: 8px;
+      background: #3fb950;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* ── CHAT ── */
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .chat-area::-webkit-scrollbar { width: 6px; }
+    .chat-area::-webkit-scrollbar-track { background: transparent; }
+    .chat-area::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+    .msg { display: flex; gap: 12px; max-width: 820px; }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+
+    .avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .avatar.agent { background: #1f6feb; }
+    .avatar.user  { background: #238636; }
+
+    .bubble {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-size: 14px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-width: 680px;
+    }
+    .msg.user .bubble {
+      background: #1f3d5c;
+      border-color: #1f6feb;
+    }
+
+    .bubble-meta {
+      font-size: 11px;
+      color: #6e7681;
+      margin-top: 5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .msg.user .bubble-meta { justify-content: flex-end; }
+
+    .agent-tag {
+      background: #1f3d5c;
+      border: 1px solid #1f6feb;
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 11px;
+      color: #58a6ff;
+      white-space: nowrap;
+    }
+
+    /* typing indicator */
+    .typing .bubble {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 16px 20px;
+    }
+    .typing .dot-anim {
+      width: 7px; height: 7px;
+      background: #58a6ff;
+      border-radius: 50%;
+      animation: bounce .8s infinite;
+    }
+    .typing .dot-anim:nth-child(2) { animation-delay: .15s; }
+    .typing .dot-anim:nth-child(3) { animation-delay: .30s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: .5; }
+      40%            { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* welcome card */
+    .welcome {
+      background: linear-gradient(135deg, #1f3d5c 0%, #162032 100%);
+      border: 1px solid #1f6feb;
+      border-radius: 14px;
+      padding: 28px 32px;
+      max-width: 680px;
+      align-self: center;
+      margin-top: 20px;
+    }
+    .welcome h1 { font-size: 20px; margin-bottom: 8px; color: #e6edf3; }
+    .welcome p  { font-size: 14px; color: #8b949e; margin-bottom: 20px; line-height: 1.6; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #c9d1d9;
+      transition: all .15s;
+    }
+    .chip:hover { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+
+    /* ── INPUT ── */
+    .input-area {
+      padding: 16px 24px 20px;
+      border-top: 1px solid #30363d;
+      background: #0f1117;
+    }
+    .input-row {
+      display: flex;
+      gap: 10px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 10px 14px;
+      align-items: flex-end;
+      transition: border-color .15s;
+    }
+    .input-row:focus-within { border-color: #58a6ff; }
+
+    textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #e6edf3;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      max-height: 140px;
+      line-height: 1.5;
+    }
+    textarea::placeholder { color: #6e7681; }
+
+    .send-btn {
+      background: #1f6feb;
+      border: none;
+      border-radius: 8px;
+      width: 36px; height: 36px;
+      cursor: pointer;
+      color: #fff;
+      font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+      flex-shrink: 0;
+    }
+    .send-btn:hover   { background: #388bfd; }
+    .send-btn:disabled { background: #30363d; cursor: not-allowed; }
+
+    .input-hint { font-size: 11px; color: #6e7681; margin-top: 8px; text-align: center; }
+
+    /* error toast */
+    .toast {
+      position: fixed;
+      bottom: 80px; right: 24px;
+      background: #da3633;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+      z-index: 999;
+      max-width: 340px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <span class="logo-icon">📦</span>
+    <div>
+      <div class="logo-text">StockAgent</div>
+      <div class="logo-sub">Multi-Agente IA</div>
+    </div>
+  </div>
+
+  <h2>Ações rápidas</h2>
+  <button class="quick-btn" onclick="sendQuick('Liste todos os produtos do estoque')">
+    <span class="icon">🗃️</span> Ver estoque completo
+  </button>
+  <button class="quick-btn" onclick="sendQuick('Quais produtos estão abaixo do estoque mínimo?')">
+    <span class="icon">⚠️</span> Alertas de estoque
+  </button>
+  <button class="quick-btn" onclick="sendQuick('Gere um relatório resumo do estoque')">
+    <span class="icon">📊</span> Relatório geral
+  </button>
+  <button class="quick-btn" onclick="sendQuick('Mostre os produtos mais vendidos dos últimos 30 dias')">
+    <span class="icon">🏆</span> Mais vendidos
+  </button>
+  <button class="quick-btn" onclick="sendQuick('Analise todos os produtos e recomende ajustes de estoque')">
+    <span class="icon">🤖</span> Análise de sugestão
+  </button>
+  <button class="quick-btn" onclick="seedDatabase()">
+    <span class="icon">🌱</span> Popular banco de dados
+  </button>
+
+  <div class="sidebar-section">
+    <h2>Agentes ativos</h2>
+    <div class="agent-badge"><span class="dot" style="background:#3fb950"></span> Inventário</div>
+    <div class="agent-badge"><span class="dot" style="background:#3fb950"></span> Pedidos</div>
+    <div class="agent-badge"><span class="dot" style="background:#3fb950"></span> Reposição</div>
+    <div class="agent-badge"><span class="dot" style="background:#3fb950"></span> Relatórios</div>
+    <div class="agent-badge"><span class="dot" style="background:#58a6ff"></span> Stock Advisor</div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <span class="topbar-title">Chat com Agente de Estoque</span>
+    <span class="topbar-status" id="status">Conectado</span>
+  </div>
+
+  <div class="chat-area" id="chat">
+    <div class="welcome">
+      <h1>👋 Olá! Sou seu assistente de estoque.</h1>
+      <p>
+        Posso verificar estoques, processar pedidos, gerar relatórios e analisar
+        se você deve <strong>aumentar, manter ou diminuir</strong> seus níveis de estoque
+        com base no comportamento de vendas.
+      </p>
+      <div class="chips">
+        <span class="chip" onclick="sendQuick('Liste os produtos do estoque')">📦 Ver produtos</span>
+        <span class="chip" onclick="sendQuick('Quais produtos precisam de reposição?')">⚠️ Alertas</span>
+        <span class="chip" onclick="sendQuick('Analise o estoque do CAFE_GOURMET_500G e recomende ajuste')">🤖 Análise IA</span>
+        <span class="chip" onclick="sendQuick('Faça um pedido de 10 unidades do OLEO_SOJA_900ML para o cliente Maria')">🛒 Novo pedido</span>
+        <span class="chip" onclick="sendQuick('Gere um relatório resumo')">📊 Relatório</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-row">
+      <textarea
+        id="input"
+        rows="1"
+        placeholder="Pergunte sobre o estoque, faça pedidos, solicite análises..."
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+    </div>
+    <div class="input-hint">Enter para enviar · Shift+Enter para nova linha</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API = 'http://localhost:8081';
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function now() {
+    return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function appendMsg(text, role, agentUsed = null) {
+    const chat = document.getElementById('chat');
+    const isUser = role === 'user';
+    const div = document.createElement('div');
+    div.className = `msg ${isUser ? 'user' : 'agent'}`;
+    const agentBadge = (!isUser && agentUsed)
+      ? `<span class="agent-tag">${agentUsed}</span>`
+      : '';
+    div.innerHTML = `
+      <div class="avatar ${isUser ? 'user' : 'agent'}">${isUser ? '👤' : '🤖'}</div>
+      <div>
+        <div class="bubble">${escapeHtml(text)}</div>
+        <div class="bubble-meta">${agentBadge}<span>${now()}</span></div>
+      </div>`;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+    return div;
+  }
+
+  function showTyping() {
+    const chat = document.getElementById('chat');
+    const div = document.createElement('div');
+    div.className = 'msg agent typing';
+    div.id = 'typing';
+    div.innerHTML = `
+      <div class="avatar agent">🤖</div>
+      <div class="bubble">
+        <div class="dot-anim"></div>
+        <div class="dot-anim"></div>
+        <div class="dot-anim"></div>
+      </div>`;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function removeTyping() {
+    const el = document.getElementById('typing');
+    if (el) el.remove();
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 4000);
+  }
+
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+  }
+
+  function setLoading(loading) {
+    const btn = document.getElementById('sendBtn');
+    const input = document.getElementById('input');
+    btn.disabled = loading;
+    input.disabled = loading;
+    document.getElementById('status').textContent = loading ? 'Processando...' : 'Conectado';
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+    input.style.height = 'auto';
+    appendMsg(text, 'user');
+    setLoading(true);
+    showTyping();
+
+    try {
+      const res = await fetch(`${API}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json();
+      removeTyping();
+      if (res.ok) {
+        appendMsg(data.response || 'Sem resposta.', 'agent', data.agent_used);
+      } else {
+        appendMsg(`Erro: ${data.detail || 'Erro desconhecido'}`, 'agent');
+      }
+    } catch (err) {
+      removeTyping();
+      showToast('Erro de conexão. Verifique se o servidor está rodando na porta 8081.');
+      appendMsg('Não consegui conectar ao servidor. Verifique se ele está rodando.', 'agent');
+    } finally {
+      setLoading(false);
+      document.getElementById('input').focus();
+    }
+  }
+
+  function sendQuick(text) {
+    document.getElementById('input').value = text;
+    sendMessage();
+  }
+
+  async function seedDatabase() {
+    setLoading(true);
+    showTyping();
+    try {
+      const res = await fetch(`${API}/seed`, { method: 'POST' });
+      const data = await res.json();
+      removeTyping();
+      appendMsg('🌱 ' + (data.message || 'Banco populado!'), 'agent');
+    } catch {
+      removeTyping();
+      showToast('Erro ao popular o banco. Servidor está rodando?');
+    } finally {
+      setLoading(false);
+    }
+  }
+</script>
+</body>
+</html>
