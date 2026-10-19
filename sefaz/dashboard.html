@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Monitor SEFAZ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e0e0e0; padding: 24px 16px; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+  h1 { font-size: 20px; }
+  .meta { font-size: 12px; color: #8b949e; }
+  button { background: #21262d; color: #e0e0e0; border: 1px solid #30363d; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  .banner { background: #3d1f1f; border: 1px solid #f85149; color: #ffa198; padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; display: none; font-size: 13px; }
+  .summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .pill { padding: 8px 14px; border-radius: 6px; background: #161b22; border: 1px solid #30363d; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .card { background: #161b22; border: 1px solid #30363d; border-left-width: 4px; border-radius: 8px; padding: 14px; cursor: pointer; }
+  .card.DISPONIVEL { border-left-color: #3fb950; }
+  .card.INTERMITENTE { border-left-color: #d29922; }
+  .card.INDISPONIVEL { border-left-color: #f85149; }
+  .card.SEM_DADOS { border-left-color: #6e7681; }
+  .card h3 { font-size: 16px; margin-bottom: 4px; }
+  .state { font-size: 12px; font-weight: 600; }
+  .DISPONIVEL .state { color: #3fb950; } .INTERMITENTE .state { color: #d29922; }
+  .INDISPONIVEL .state { color: #f85149; } .SEM_DADOS .state { color: #8b949e; }
+  .small { font-size: 12px; color: #8b949e; margin-top: 6px; }
+  .dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot.up { background: #3fb950; } .dot.degraded { background: #d29922; } .dot.down { background: #f85149; }
+  .services { display: none; margin-top: 10px; font-size: 12px; }
+  .card.open .services { display: block; }
+  .services div { display: flex; justify-content: space-between; padding: 2px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>🏛️ Monitor de disponibilidade SEFAZ (NF-e)</h1>
+      <div class="meta" id="meta">carregando…</div>
+    </div>
+    <button onclick="checkNow()">Verificar agora</button>
+  </header>
+  <div class="banner" id="banner"></div>
+  <div class="summary" id="summary"></div>
+  <div class="grid" id="grid"></div>
+</div>
+<script>
+const LABEL = { DISPONIVEL: 'Disponível', INTERMITENTE: 'Intermitente', INDISPONIVEL: 'Indisponível', SEM_DADOS: 'Sem dados' };
+const SVC = { up: '🟢', degraded: '🟡', down: '🔴' };
+const open = new Set();
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+async function loadHistory(aut) {
+  const r = await fetch('/sefaz/history/' + encodeURIComponent(aut) + '?hours=1');
+  return r.ok ? (await r.json()).data : [];
+}
+
+async function render() {
+  const res = await fetch('/sefaz/status');
+  const j = await res.json();
+  const c = j.collector;
+  document.getElementById('meta').textContent =
+    `Janela: ${j.window_minutes} min · coleta a cada ${j.poll_seconds}s · última coleta: ` +
+    (c.at ? new Date(c.at + 'Z').toLocaleTimeString() : 'aguardando');
+  const b = document.getElementById('banner');
+  b.style.display = c.ok === false ? 'block' : 'none';
+  if (c.ok === false) b.textContent = 'Falha ao consultar o portal da Fazenda (dados abaixo podem estar desatualizados): ' + c.error;
+
+  const counts = {};
+  j.data.forEach(a => counts[a.state] = (counts[a.state] || 0) + 1);
+  document.getElementById('summary').innerHTML = Object.keys(LABEL)
+    .filter(k => counts[k]).map(k => `<div class="pill">${LABEL[k]}: <b>${counts[k]}</b></div>`).join('')
+    || '<div class="pill">Ainda sem dados — aguarde a primeira coleta.</div>';
+
+  const cards = await Promise.all(j.data.map(async a => {
+    const hist = await loadHistory(a.autorizador);
+    const dots = hist.map(h => `<span class="dot ${h.status}" title="${new Date(h.at).toLocaleTimeString()}"></span>`).join('');
+    const svcs = Object.entries(a.services).map(([k, v]) => `<div><span>${esc(k)}</span><span>${SVC[v]}</span></div>`).join('');
+    return `<div class="card ${a.state} ${open.has(a.autorizador) ? 'open' : ''}" onclick="toggle('${esc(a.autorizador)}')">
+      <h3>${esc(a.autorizador)}</h3>
+      <div class="state">${LABEL[a.state]}</div>
+      <div class="small">${a.availability_pct}% disponível · ${a.failures}/${a.samples} coletas com falha</div>
+      <div class="dots">${dots}</div>
+      <div class="services">${svcs}</div>
+    </div>`;
+  }));
+  document.getElementById('grid').innerHTML = cards.join('');
+}
+
+function toggle(a) { open.has(a) ? open.delete(a) : open.add(a); render(); }
+async function checkNow() { await fetch('/sefaz/check', { method: 'POST' }); render(); }
+
+render();
+setInterval(render, 30000);
+</script>
+</body>
+</html>

@@ -29,4 +29,5 @@ def get_session():
 
 def init_db():
     from models import Product, StockItem, Movement, Order, PurchaseOrder, StockRecommendation  # noqa
+    from sefaz.models import SefazCheck  # noqa
     Base.metadata.create_all(bind=engine)

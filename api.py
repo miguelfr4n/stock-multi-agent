@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage
 
 from database import get_db, init_db
 from graph import inventory_graph
+from sefaz.router import router as sefaz_router, start_monitor
 from tools.db_tools import (
     list_products,
     get_product,
@@ -35,9 +36,13 @@ app.add_middleware(
 )
 
 
+app.include_router(sefaz_router)
+
+
 @app.on_event("startup")
 async def startup():
     init_db()
+    await start_monitor()
 
 
 # ─── SCHEMAS ─────────────────────────────────────────────────────────────────

@@ -148,6 +148,22 @@ O agente analisa os seguintes indicadores para recomendar `AUMENTAR`, `MANTER` o
 | `GET` | `/recommendations` | Recomendações do advisor |
 | `POST` | `/seed` | Popular banco com dados de teste |
 
+## Monitor SEFAZ
+
+Painel que acompanha a disponibilidade dos autorizadores da NF-e (SVRS, SVAN, SP, MG...) lendo a página pública
+da Fazenda (`nfe.fazenda.gov.br/portal/disponibilidade.aspx`) a cada 60s e guardando o histórico no banco.
+
+| Estado | Regra (janela de 15 min) |
+|--------|--------------------------|
+| 🟢 Disponível | todas as coletas ok |
+| 🟡 Intermitente | oscilou, ficou lento/instável ou acabou de cair |
+| 🔴 Indisponível | últimas 3 coletas fora do ar |
+
+- Dashboard: `http://localhost:8081/sefaz`
+- API: `GET /sefaz/status`, `GET /sefaz/history/{autorizador}`, `POST /sefaz/check`
+- Variáveis opcionais: `SEFAZ_POLL_SECONDS`, `SEFAZ_WINDOW_MINUTES`, `SEFAZ_RETENTION_DAYS`, `SEFAZ_STATUS_URL`
+- Testes: `pytest tests`
+
 ## Licença
 
 MIT
